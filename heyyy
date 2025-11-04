@@ -1,0 +1,266 @@
+
+      function getElementSelector(el) {
+        if (!(el instanceof Element)) return "unknown";
+        
+        const path = [];
+        let cur = el;
+
+        // Compact utility class patterns (Tailwind, Bootstrap, etc.)
+        const utilityPattern = /^(bg-|text-|flex$|grid$|container$|[mp][trblxy]?-\d+$|[wh]-\d+$|max-|min-|font-|border-|shadow-|rounded-|z-\d+$|overflow-|align-|justify-|items-|gap-|space-|divide-|opacity-\d+$|scale-\d+$|rotate-\d+$|translate-|skew-|cursor-|select-|resize-|hidden$|block$|inline|absolute$|relative$|fixed$|sticky$|top-|right-|bottom-|left-|transition-|duration-\d+$|ease-|delay-\d+$|animate-|\[.*?\]|sm:|md:|lg:|xl:|2xl:|hover:|focus:|active:|group-|peer-|btn-|alert-|badge-|card-|modal-|nav-|is-|has-)/;
+
+        // High-value attributes for unique identification
+        const strongAttrs = ['id', 'name', 'data-id', 'data-testid', 'data-test', 'aria-label'];
+        const weakAttrs = ['type', 'role', 'placeholder', 'alt', 'title', 'value', 'href'];
+
+        // Verify selector uniqueness AND correctness
+        function isUnique(selector, targetElement) {
+          try {
+            const matches = document.querySelectorAll(selector);
+            // CRITICAL: Must match exactly 1 element AND it must be the target element
+            return matches.length === 1 && matches[0] === targetElement;
+          } catch (e) {
+            return false;
+          }
+        }
+        
+        // Verify the selector targets the exact element (identity check)
+        function verifySelectorIdentity(selector, targetElement) {
+          try {
+            const matched = document.querySelector(selector);
+            // Use strict identity check (same object reference)
+            return matched === targetElement;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        // Try unique ID with validation
+        function tryUniqueId(elem) {
+          const id = elem.id;
+          if (!id || /^\d/.test(id)) return null;
+          
+          const selector = `#${CSS.escape(id)}`;
+          return isUnique(selector, elem) ? selector : null;
+        }
+
+        // Try attribute-based selector with uniqueness guarantee
+        function tryUniqueAttribute(elem, attrs) {
+          for (const attr of attrs) {
+            const val = elem.getAttribute(attr);
+            if (!val || val.length === 0 || val.length > 50) continue;
+            
+            const selector = `${elem.tagName.toLowerCase()}[${attr}="${CSS.escape(val)}"]`;
+            if (isUnique(selector, elem)) {
+              return { selector, specificity: 100 };
+            }
+            
+            // Try with multiple attributes for uniqueness
+            for (const attr2 of attrs) {
+              if (attr2 === attr) continue;
+              const val2 = elem.getAttribute(attr2);
+              if (!val2 || val2.length === 0 || val2.length > 50) continue;
+              
+              const multiSelector = `${elem.tagName.toLowerCase()}[${attr}="${CSS.escape(val)}"][${attr2}="${CSS.escape(val2)}"]`;
+              if (isUnique(multiSelector, elem)) {
+                return { selector: multiSelector, specificity: 100 };
+              }
+            }
+          }
+          return null;
+        }
+
+        // Try class-based selector with uniqueness guarantee
+        function tryUniqueClasses(elem) {
+          const semanticClasses = [...elem.classList].filter(c => !utilityPattern.test(c));
+          if (semanticClasses.length === 0) return null;
+
+          const tag = elem.tagName.toLowerCase();
+          
+          // Try single class first
+          for (let i = 0; i < semanticClasses.length; i++) {
+            const selector = `${tag}.${CSS.escape(semanticClasses[i])}`;
+            if (isUnique(selector, elem)) {
+              return { selector, specificity: 10 };
+            }
+          }
+
+          // Try combinations of 2 classes
+          for (let i = 0; i < semanticClasses.length - 1; i++) {
+            for (let j = i + 1; j < Math.min(semanticClasses.length, i + 3); j++) {
+              const selector = `${tag}.${CSS.escape(semanticClasses[i])}.${CSS.escape(semanticClasses[j])}`;
+              if (isUnique(selector, elem)) {
+                return { selector, specificity: 20 };
+              }
+            }
+          }
+
+          // Use all semantic classes if still not unique
+          const allClasses = semanticClasses.slice(0, 3).map(CSS.escape).join('.');
+          const selector = `${tag}.${allClasses}`;
+          return { selector, specificity: 5 };
+        }
+
+        // Get best selector with nth-of-type fallback for uniqueness
+        function getBestSelector(elem) {
+          const tag = elem.tagName.toLowerCase();
+          
+          // Try strong attributes (data-testid, data-id, etc.)
+          const strongAttrResult = tryUniqueAttribute(elem, strongAttrs);
+          if (strongAttrResult) return strongAttrResult;
+
+          // Try semantic classes
+          const classResult = tryUniqueClasses(elem);
+          if (classResult && isUnique(classResult.selector, elem)) {
+            return classResult;
+          }
+
+          // Try weak attributes
+          const weakAttrResult = tryUniqueAttribute(elem, weakAttrs);
+          if (weakAttrResult) return weakAttrResult;
+
+          // Build base selector
+          let selector = tag;
+          if (classResult) {
+            selector = classResult.selector;
+          }
+
+          // Add nth-of-type for uniqueness
+          let nth = 1;
+          let sib = elem.previousElementSibling;
+          while (sib) {
+            if (sib.tagName === elem.tagName) nth++;
+            sib = sib.previousElementSibling;
+          }
+          
+          selector += `:nth-of-type(${nth})`;
+          return { selector, specificity: 2 };
+        }
+
+        // Build path from element to root
+        while (cur && cur.nodeType === 1 && cur !== document.documentElement) {
+          // Check for unique ID - fastest path
+          const uniqueId = tryUniqueId(cur);
+          if (uniqueId) {
+            path.unshift(uniqueId);
+            // Verify the full path is unique
+            if (isUnique(path.join(' > '), el)) {
+              break;
+            }
+          } else {
+            // Get best selector for current element
+            const { selector, specificity } = getBestSelector(cur);
+            path.unshift(selector);
+
+            // Test if current path is unique
+            const currentPath = path.join(' > ');
+            if (isUnique(currentPath, el)) {
+              // Try to optimize by removing redundant ancestors
+              if (path.length > 1) {
+                for (let i = 1; i < path.length; i++) {
+                  const shorterPath = path.slice(i).join(' > ');
+                  if (isUnique(shorterPath, el)) {
+                    return shorterPath;
+                  }
+                }
+              }
+              return currentPath;
+            }
+          }
+
+          cur = cur.parentElement;
+        }
+
+        // Final path assembly with strict verification
+        const finalPath = path.join(' > ');
+        
+        // CRITICAL VERIFICATION: Ensure selector matches the EXACT element
+        if (!isUnique(finalPath, el) || !verifySelectorIdentity(finalPath, el)) {
+          // Last resort: add more specificity with position
+          const lastSelector = path[path.length - 1];
+          let nth = 1;
+          const parent = el.parentElement;
+          if (parent) {
+            const siblings = Array.from(parent.children);
+            nth = siblings.indexOf(el) + 1;
+            path[path.length - 1] = `${el.tagName.toLowerCase()}:nth-child(${nth})`;
+            
+            const fallbackPath = path.join(' > ');
+            // Final verification of fallback
+            if (verifySelectorIdentity(fallbackPath, el)) {
+              return fallbackPath;
+            }
+          }
+        }
+
+        return finalPath || "unknown";
+      }
+
+
+
+
+
+
+
+
+function createFieldSelectors(elementData, fieldsData) {
+  // Get the base selector from the element data
+  // let baseSelector = createSelectorFromJson(elementData);
+  let baseSelector = elementData.selector || '';
+
+  // Get the row selector from fields data
+  let rowSelector = fieldsData.selector || '';
+
+
+  let containerSelector = [baseSelector, rowSelector].filter(Boolean).join(' ');
+
+  // Escape colons in selectors
+  baseSelector = escapeColonsInSelector(baseSelector);
+  rowSelector = escapeColonsInSelector(rowSelector);
+  containerSelector = escapeColonsInSelector(containerSelector);
+
+  // Create complete selectors for each field
+  const fieldSelectors = {};
+  const rawFieldSelectors = {};
+
+  if (fieldsData.fields) {
+    Object.keys(fieldsData.fields).forEach(fieldName => {
+      let fieldSelector = fieldsData.fields[fieldName];
+      rawFieldSelectors[fieldName] = fieldSelector;
+
+      // Escape colons in the field selector
+      const escapedFieldSelector = escapeColonsInSelector(fieldSelector);
+
+      // Check if fieldSelector is already a complete selector (starts from root)
+      // or if it contains XPath-like syntax that shouldn't be combined
+      if (
+        fieldSelector.startsWith('body') ||
+        fieldSelector.startsWith('html')
+      ) {
+        // This looks like a complete CSS selector, use as-is (escaped)
+        fieldSelectors[fieldName] = escapedFieldSelector;
+      } else {
+        // This is a relative selector, combine with container selector (which should be row selector)
+        // Only combine if we have a meaningful container selector
+        if (containerSelector && containerSelector !== '') {
+          // Check if the escaped field selector starts with '[' (attribute selector)
+          if (escapedFieldSelector.startsWith('[')) {
+            // For attribute selectors, concatenate without space
+            fieldSelectors[fieldName] = `${containerSelector}${escapedFieldSelector}`;
+          } else {
+            // For other selectors, use space (descendant combinator)
+            fieldSelectors[fieldName] = `${containerSelector} ${escapedFieldSelector}`;
+          }
+        } else {
+          fieldSelectors[fieldName] = escapedFieldSelector;
+        }
+      }
+    });
+  }
+
+  return {
+    baseSelector: baseSelector,
+    fieldSelectors: fieldSelectors,
+    rowSelector: rowSelector,
+    rawFieldSelectors: rawFieldSelectors
+  };
+}
