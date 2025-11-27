@@ -162,3 +162,351 @@ Want a version that also supports:
 ➤ human-like typing simulation (char-by-char)
 
 Just tell me which features you need, and I’ll extend it.
+
+
+
+
+<svg viewBox="38 09 218 258" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Soft shadow -->
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="0" dy="4" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.15"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Magical Glow -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Soft Mouth Glow -->
+    <filter id="mouthGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- iMac G4 Base Gradient (White/Silver) -->
+    <radialGradient id="baseGradient" cx="50%" cy="20%" r="80%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#d1d5db"/>
+    </radialGradient>
+
+    <!-- Chrome Neck Gradient -->
+    <linearGradient id="chromeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#9ca3af"/>
+      <stop offset="30%" stop-color="#f3f4f6"/>
+      <stop offset="50%" stop-color="#ffffff"/>
+      <stop offset="70%" stop-color="#f3f4f6"/>
+      <stop offset="100%" stop-color="#9ca3af"/>
+    </linearGradient>
+    
+    <!-- Head Gradient -->
+    <linearGradient id="headGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f3f4f6"/>
+    </linearGradient>
+    
+    <!-- Screen Gradient -->
+    <linearGradient id="screenGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1f2937"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    
+    <!-- Eye glow gradient (Sparkling Cyan) -->
+    <radialGradient id="eyeGlow" cx="40%" cy="40%">
+      <stop offset="0%" stop-color="#a5f3fc"/>
+      <stop offset="50%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </radialGradient>
+  </defs>
+
+  <!-- iMac G4 Base (Hemisphere) -->
+  <g id="base" transform="translate(150, 230)">
+    <!-- Dome shape (smaller) -->
+    <path d="M-45 0 C-45 -28 -25 -42 0 -42 C 25 -42 45 -28 45 0 L 45 10 C 45 18 25 25 0 25 C -25 25 -45 18 -45 10 Z" fill="url(#baseGradient)" filter="url(#shadow)"/>
+    <!-- Apple logo detail (subtle, smaller) -->
+    <circle cx="0" cy="-18" r="6" fill="#9ca3af" opacity="0.3"/>
+  </g>
+
+  <!-- Chrome Neck (Articulated Arm) -->
+  <g id="neck">
+    <!-- Main arm stem -->
+    <path d="M150 190 L150 150" stroke="url(#chromeGradient)" stroke-width="14" stroke-linecap="round"/>
+    <!-- Joint at base -->
+    <circle cx="150" cy="190" r="10" fill="#d1d5db" stroke="#9ca3af" stroke-width="1"/>
+    <!-- Joint at head -->
+    <circle cx="150" cy="150" r="8" fill="#d1d5db" stroke="#9ca3af" stroke-width="1"/>
+  </g>
+
+  <!-- Head Group (Floating Screen) -->
+  <g id="head">
+    <!-- Animation: Gentle Float & Tilt -->
+    <animateTransform attributeName="transform" type="rotate" 
+      values="0 150 150; -6 150 150; 6 150 150; 0 150 150" 
+      keyTimes="0; 0.3; 0.7; 1"
+      dur="8s" repeatCount="indefinite"/>
+      
+    <!-- Screen Shake (Excitement!) -->
+    <animateTransform attributeName="transform" type="translate" additive="sum"
+      values="0,0; 0,0; 0,0; 0,-5; 0,-4; 0,-5; 0,0"
+      keyTimes="0; 0.7; 0.73; 0.76; 0.79; 0.82; 1"
+      dur="6s" repeatCount="indefinite"/>
+
+    <!-- Cute Antenna (Hair Tufts) - Behind Screen -->
+    <g id="antenna">
+      <!-- Left Antenna -->
+      <g>
+        <rect x="135" y="38" width="6" height="28" rx="3" fill="url(#chromeGradient)"/>
+        <circle cx="138" cy="36" r="8" fill="#06B6D4"/>
+        <!-- Natural Hair Sway & Bounce -->
+        <animateTransform attributeName="transform" type="rotate" additive="sum"
+          values="0 138 66; -5 138 66; 3 138 66; -2 138 66; 0 138 66"
+          keyTimes="0; 0.3; 0.5; 0.7; 1"
+          dur="3s" repeatCount="indefinite"/>
+        <animateTransform attributeName="transform" type="translate" additive="sum"
+          values="0,0; 0,-2; 0,1; 0,-1; 0,0"
+          keyTimes="0; 0.3; 0.5; 0.7; 1"
+          dur="3s" repeatCount="indefinite"/>
+      </g>
+      
+      <!-- Right Antenna -->
+      <g>
+        <rect x="159" y="38" width="6" height="28" rx="3" fill="url(#chromeGradient)"/>
+        <circle cx="162" cy="36" r="8" fill="#06B6D4"/>
+        <!-- Natural Hair Sway & Bounce (offset) -->
+        <animateTransform attributeName="transform" type="rotate" additive="sum"
+          values="0 162 66; 5 162 66; -3 162 66; 2 162 66; 0 162 66"
+          keyTimes="0; 0.3; 0.5; 0.7; 1"
+          dur="3s" repeatCount="indefinite" begin="0.15s"/>
+        <animateTransform attributeName="transform" type="translate" additive="sum"
+          values="0,0; 0,-2; 0,1; 0,-1; 0,0"
+          keyTimes="0; 0.3; 0.5; 0.7; 1"
+          dur="3s" repeatCount="indefinite" begin="0.15s"/>
+      </g>
+    </g>
+
+    <!-- Screen Bezel (White) -->
+    <rect x="60" y="60" width="180" height="140" rx="16" fill="url(#headGradient)" stroke="#e5e7eb" stroke-width="2" filter="url(#shadow)"/>
+    
+    <!-- Screen (Black) -->
+    <rect x="75" y="75" width="150" height="110" rx="6" fill="url(#screenGradient)"/>
+
+    <!-- COZMO EYES GROUP -->
+    <g>
+      <!-- Animation: Look Around & Happy Bounce -->
+      <animateTransform attributeName="transform" type="translate" 
+        values="0,0; -5,0; 5,0; 0,0; 0,-4; 0,0" 
+        keyTimes="0; 0.25; 0.5; 0.75; 0.85; 1"
+        dur="6s" repeatCount="indefinite"/>
+        <!-- MOUTH (Curious circle when blinking/eyes moving, then happy smile) -->
+        <!-- Curious Oval Mouth - Cute cartoon robot style -->
+        <g opacity="1">
+          <animate attributeName="opacity" values="1;1;0;0;1;1" keyTimes="0;0.71;0.72;0.88;0.98;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
+          
+          <!-- Outer glow - cute round "O" shape -->
+          <ellipse cx="150" cy="165" rx="9" ry="10" fill="#22d3ee" filter="url(#mouthGlow)">
+            <!-- Surprised/curious wobble -->
+            <animate attributeName="rx" values="9;10;9;8;9" keyTimes="0;0.3;0.5;0.8;1" dur="2.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
+            <animate attributeName="ry" values="10;9;11;10;10" keyTimes="0;0.3;0.5;0.8;1" dur="2.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
+          </ellipse>
+          
+          <!-- Inner dark "O" - gives cartoon depth -->
+          <ellipse cx="150" cy="166" rx="6" ry="7" fill="#0e7490" opacity="0.85">
+            <animate attributeName="rx" values="6;7;6;5;6" keyTimes="0;0.3;0.5;0.8;1" dur="2.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
+            <animate attributeName="ry" values="7;6;8;7;7" keyTimes="0;0.3;0.5;0.8;1" dur="2.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
+          </ellipse>
+          
+          <!-- Cute top lip highlight arc -->
+          <path d="M143 162 Q150 159, 157 162" stroke="#a5f3fc" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.7"/>
+          
+          <!-- Main sparkle - bouncy -->
+          <circle cx="145" cy="161" r="2" fill="#ffffff" opacity="0.95">
+            <animate attributeName="r" values="2;2.5;2" dur="1.5s" repeatCount="indefinite"/>
+            <animate attributeName="opacity" values="0.95;1;0.95" dur="1.5s" repeatCount="indefinite"/>
+          </circle>
+          
+          <!-- Secondary tiny sparkle -->
+          <circle cx="155" cy="162" r="1.2" fill="#cffafe" opacity="0.8">
+            <animate attributeName="opacity" values="0.8;0.4;0.8" dur="2s" repeatCount="indefinite"/>
+          </circle>
+          
+          <!-- Cute wobble motion for the whole mouth -->
+          <animateTransform attributeName="transform" type="translate"
+            values="0,0; 0,-0.5; 0,0.5; 0,0"
+            keyTimes="0; 0.3; 0.6; 1"
+            dur="3s" repeatCount="indefinite" calcMode="spline"
+            keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
+        </g>
+        
+        <!-- Happy Smile Mouth -->
+        <path d="M132 160 C140 168, 160 168, 168 160" stroke="#22d3ee" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0">
+          <animate attributeName="opacity"
+            values="0;0;1;1;0;0"
+            keyTimes="0;0.70;0.72;0.88;0.89;1"
+            dur="6s" repeatCount="indefinite"
+            calcMode="spline"
+            keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
+        </path>
+
+      <!-- LEFT EYE -->
+      <g>
+        <!-- Eye Socket Background (Pill Shape) -->
+        <rect x="104" y="98" width="40" height="50" rx="20" fill="#0f172a"/>
+        
+        <!-- Glowing Eye (Path for Smooth Morphing - Pill Shape) -->
+        <path fill="#22d3ee" filter="url(#glow)">
+           <!-- Morph: Pill -> Happy Reverse Arc (^) -> Pill -->
+           <animate attributeName="d" 
+                 values="M 108 118 a 16 16 0 0 1 32 0 v 10 a 16 16 0 0 1 -32 0 z;
+                   M 108 118 a 16 16 0 0 1 32 0 v 10 a 16 16 0 0 1 -32 0 z;
+                   M 108 128 q 16 -30 32 0 v 6 q -16 -30 -32 0 z;
+                   M 108 118 a 16 16 0 0 1 32 0 v 10 a 16 16 0 0 1 -32 0 z"
+             keyTimes="0; 0.72; 0.78; 1"
+             dur="6s" repeatCount="indefinite"/>
+             
+           <!-- Eyebrow Bounce (Energetic Tilt) -->
+           <animateTransform attributeName="transform" type="rotate"
+             values="0 114 123; 0 114 123; 0 114 123; -12 114 110; -8 114 110; -12 114 110; 0 114 123"
+             keyTimes="0; 0.7; 0.73; 0.76; 0.79; 0.82; 1"
+             dur="6s" repeatCount="indefinite"/>
+        </path>
+        
+        <!-- Inner Detail (Morphing - Pill Shape) -->
+        <path fill="#67e8f9" opacity="0.6">
+           <animate attributeName="d" 
+                 values="M 112 120 a 12 12 0 0 1 24 0 v 6 a 12 12 0 0 1 -24 0 z;
+                   M 112 120 a 12 12 0 0 1 24 0 v 6 a 12 12 0 0 1 -24 0 z;
+                   M 112 130 q 12 -26 24 0 v 4 q -12 -26 -24 0 z;
+                   M 112 120 a 12 12 0 0 1 24 0 v 6 a 12 12 0 0 1 -24 0 z"
+             keyTimes="0; 0.72; 0.78; 1"
+             dur="6s" repeatCount="indefinite"/>
+             
+           <animateTransform attributeName="transform" type="rotate"
+             values="0 114 123; 0 114 123; 0 114 123; -12 114 110; -8 114 110; -12 114 110; 0 114 123"
+             keyTimes="0; 0.7; 0.73; 0.76; 0.79; 0.82; 1"
+             dur="6s" repeatCount="indefinite"/>
+        </path>
+        
+        <!-- Main Highlight (Smaller) - Moves left, right, and down -->
+        <ellipse cx="120" cy="115" rx="5" ry="6" fill="#ffffff" opacity="0.95">
+           <animate attributeName="cx" values="120;126;126;122;120" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
+           <animate attributeName="cy" values="115;115;125;125;115" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
+           <animate attributeName="opacity" values="0.95; 0.95; 0; 0.95" keyTimes="0; 0.72; 0.85; 1" dur="6s" repeatCount="indefinite"/>
+        </ellipse>
+        
+        <!-- Secondary Sparkle (Adjusted) - Moves with highlight -->
+        <circle cx="127" cy="120" r="2.5" fill="#a5f3fc" opacity="0.8">
+           <animate attributeName="cx" values="127;133;133;129;127" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
+           <animate attributeName="cy" values="120;120;130;130;120" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
+           <animate attributeName="opacity" values="0.8; 0.5; 0.8" dur="3s" repeatCount="indefinite"/>
+        </circle>
+        
+        <!-- Animated Shimmer (Adjusted) -->
+        <ellipse cx="120" cy="116" rx="5" ry="7" fill="#cffafe" opacity="0">
+           <animate attributeName="opacity" values="0; 0.7; 0; 0; 0" keyTimes="0; 0.15; 0.3; 0.5; 1" dur="4s" repeatCount="indefinite"/>
+        </ellipse>
+        
+        <!-- SPLIT BLINK: Top Lid (Left Eye - Blink twice before smile) -->
+        <rect x="104" y="98" width="40" height="29" rx="20" fill="#0f172a" opacity="0">
+           <animate attributeName="opacity" values="0;0;1;0;0;1;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
+           <animate attributeName="height" values="0;0;29;0;0;29;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
+        </rect>
+        <!-- SPLIT BLINK: Bottom Lid (Left Eye - Blink twice before smile) -->
+        <rect x="104" y="119" width="40" height="29" rx="20" fill="#0f172a" opacity="0">
+           <animate attributeName="opacity" values="0;0;1;0;0;1;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
+           <animate attributeName="y" values="148;148;119;148;148;119;148;148" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
+           <animate attributeName="height" values="0;0;29;0;0;29;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
+        </rect>
+      </g>
+
+      <!-- RIGHT EYE -->
+      <g>
+        <!-- Eye Socket Background (Pill Shape) -->
+        <rect x="156" y="98" width="40" height="50" rx="20" fill="#0f172a"/>
+        
+        <!-- Glowing Eye (Path for Smooth Morphing - Pill Shape) -->
+        <path fill="#22d3ee" filter="url(#glow)">
+           <!-- Morph: Pill -> Happy Reverse Arc (^) -> Pill -->
+           <animate attributeName="d" 
+                 values="M 160 118 a 16 16 0 0 1 32 0 v 10 a 16 16 0 0 1 -32 0 z;
+                   M 160 118 a 16 16 0 0 1 32 0 v 10 a 16 16 0 0 1 -32 0 z;
+                   M 160 128 q 16 -30 32 0 v 6 q -16 -30 -32 0 z;
+                   M 160 118 a 16 16 0 0 1 32 0 v 10 a 16 16 0 0 1 -32 0 z"
+             keyTimes="0; 0.72; 0.78; 1"
+             dur="6s" repeatCount="indefinite"/>
+             
+           <!-- Eyebrow Bounce (Energetic Tilt) -->
+           <animateTransform attributeName="transform" type="rotate"
+             values="0 186 123; 0 186 123; 0 186 123; 12 186 110; 8 186 110; 12 186 110; 0 186 123"
+             keyTimes="0; 0.7; 0.73; 0.76; 0.79; 0.82; 1"
+             dur="6s" repeatCount="indefinite"/>
+        </path>
+        
+        <!-- Inner Detail (Morphing - Pill Shape) -->
+        <path fill="#67e8f9" opacity="0.6">
+           <animate attributeName="d" 
+                 values="M 164 120 a 12 12 0 0 1 24 0 v 6 a 12 12 0 0 1 -24 0 z;
+                   M 164 120 a 12 12 0 0 1 24 0 v 6 a 12 12 0 0 1 -24 0 z;
+                   M 164 130 q 12 -26 24 0 v 4 q -12 -26 -24 0 z;
+                   M 164 120 a 12 12 0 0 1 24 0 v 6 a 12 12 0 0 1 -24 0 z"
+             keyTimes="0; 0.72; 0.78; 1"
+             dur="6s" repeatCount="indefinite"/>
+             
+           <animateTransform attributeName="transform" type="rotate"
+             values="0 186 123; 0 186 123; 0 186 123; 12 186 110; 8 186 110; 12 186 110; 0 186 123"
+             keyTimes="0; 0.7; 0.73; 0.76; 0.79; 0.82; 1"
+             dur="6s" repeatCount="indefinite"/>
+        </path>
+        
+        <!-- Main Highlight (Smaller) - Moves left, right, and down -->
+        <ellipse cx="172" cy="115" rx="5" ry="6" fill="#ffffff" opacity="0.95">
+           <animate attributeName="cx" values="172;178;178;174;172" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
+           <animate attributeName="cy" values="115;115;125;125;115" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
+           <animate attributeName="opacity" values="0.95; 0.95; 0; 0.95" keyTimes="0; 0.72; 0.85; 1" dur="6s" repeatCount="indefinite"/>
+        </ellipse>
+        
+        <!-- Secondary Sparkle (Adjusted) - Moves with highlight -->
+        <circle cx="179" cy="120" r="2.5" fill="#a5f3fc" opacity="0.8">
+           <animate attributeName="cx" values="179;185;185;181;179" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
+           <animate attributeName="cy" values="120;120;130;130;120" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
+           <animate attributeName="opacity" values="0.8; 0.5; 0.8" dur="3s" repeatCount="indefinite"/>
+        </circle>
+        
+        <!-- Animated Shimmer (Adjusted) -->
+        <ellipse cx="172" cy="116" rx="5" ry="7" fill="#cffafe" opacity="0">
+           <animate attributeName="opacity" values="0; 0.7; 0; 0; 0" keyTimes="0; 0.15; 0.3; 0.5; 1" dur="4s" repeatCount="indefinite"/>
+        </ellipse>
+        
+        <!-- SPLIT BLINK: Top Lid (Right Eye - Blink twice before smile) -->
+          <rect x="156" y="98" width="40" height="29" rx="20" fill="#0f172a" opacity="0">
+            <animate attributeName="opacity" values="0;0;1;0;0;1;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
+            <animate attributeName="height" values="0;0;29;0;0;29;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
+        </rect>
+        <!-- SPLIT BLINK: Bottom Lid (Right Eye - Blink twice before smile) -->
+          <rect x="156" y="119" width="40" height="29" rx="20" fill="#0f172a" opacity="0">
+            <animate attributeName="opacity" values="0;0;1;0;0;1;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
+            <animate attributeName="y" values="148;148;119;148;148;119;148;148" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
+            <animate attributeName="height" values="0;0;29;0;0;29;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
+        </rect>
+      </g>
+    </g>
+  </g>
+</svg>
+
+
+
+
