@@ -1,512 +1,207 @@
-Below is a complete, production-ready, Manifest-V3 compatible setup that supports:
+`You are a web scraping expert extracting structured data patterns from preprocessed HTML where non-essential elements have been removed but DOM structure remains intact.
 
-✅ Real (trusted) click
-✅ Real (trusted) hover
-✅ Real (framework-safe) input/typing
-Also optional: real focus
+## ANALYSIS PROCESS
 
-This setup works on:
+### Step 1: Identify Container Selector
+Find the primary repeating block container:
+- Must appear multiple times with consistent structure
+- Should be the outermost element that fully encapsulates each data unit
+- Represents meaningful content (search results, listings, bookings, etc.)
+- Priority: travel bookings, search results, product listings
 
-React, Vue, Angular, Svelte
+**If NO repeating blocks found:**
+- Look for single content blocks with structured data (profile info, event details, product specs)
+- The container can be the entire provided HTML block if it contains structured information
+- Examples of single-block scenarios:
+  * **Employee Profile**: Name, Salary, School, Department - fields may be in separate \`<p>\`, \`<div>\`, or \`<span>\` tags
+  * **Corporate Earnings**: Release date/time, call time, dial-in numbers, webcast links - complex nested structure
+  * **Company Info**: Address, Phone, Email, Hours - typically in contact sections
+- Container selection strategy:
+  * Use the outermost element that encompasses ALL related data fields
+  * If the entire provided HTML represents one logical entity (like one event), use the root container
+  * Look for meaningful wrapper element
+  * For complex nested structures, identify the parent that contains all relevant information
 
-Shadow DOM
+### Important: Nested / Threaded Content (Reddit, Forums, HackerNews, etc.)
+For comment threads, forum replies, or any nested/recursive structure:
+- **CRITICAL**: Select the **individual comment node**, NOT the thread/tree container
+- The container must represent ONE comment with ONE username, ONE timestamp, ONE comment body
+- If a container's fields match multiple usernames/timestamps/texts, you've selected too high in the DOM tree — go deeper
+- Look for the element that wraps exactly: author + timestamp + body text (and optionally vote count)
+- Nested replies should be SEPARATE container matches, not children of the parent comment container
+- The correct selector typically targets the comment's own content wrapper, excluding its nested reply subtree
+- Test: if \`querySelectorAll(selector)\` returns N elements and there are N visible comments, the selector is correct
+- Use simple, short field selectors — nested container deduplication is handled automatically by the extraction engine
 
-SPAs
+### Step 2: Extract Fields
+Identify data fields within the container and create CSS selectors:
+- Build CSS selectors relative to the container
+- **CRITICAL**: Field must exist in ALL container instances (no exceptions)
+- **CRITICAL**: EACH FIELD SELECTOR MUST RESOLVE TO EXACTLY ONE NODE PER CONTAINER.
+  * If it matches >1, refine using Element + meaningful class (preferred), child/descendant path, attribute filters and :nth-of-type().
+  * Add :nth-of-type(n) as last resort
+- **CRITICAL :nth-of-type pitfall**: \`:nth-of-type(n)\` counts ALL siblings of that tag regardless of class.
+  * **NEVER combine class + :nth-of-type**: \`span.myclass:nth-of-type(2)\` does NOT mean "the 2nd span with class myclass". It means "the 2nd span among siblings, AND it must have class myclass" — if the 2nd span has a different class, it matches NOTHING.
+  * **DON'T**: \`span.dds-text-secondary:nth-of-type(1)\` for venue, \`span.dds-text-secondary:nth-of-type(2)\` for price — WRONG, this will mismatch or return nothing
+  * **DO**: Use \`span:nth-of-type(N)\` WITHOUT class (count the actual position of all \`<span>\` siblings to find N), OR use a parent/structural path to disambiguate
+  * Example: siblings \`<span class="date">\`, \`<h5>\`, \`<span class="loc">\`, \`<span class="price">\` → \`span:nth-of-type(1)\` = date, \`span:nth-of-type(2)\` = loc, \`span:nth-of-type(3)\` = price (the \`<h5>\` is not a span so it's skipped)
+- Exclude fields missing from any instance
+- Focus on data, not decorative elements(empty spans, separators)
+- Test selector specificity to ensure single-element targeting
 
-Anti-bot guarded websites
+### Important: Extracting Attribute Values vs Text Content
+- For **links/URLs**: use \`a[href]\` — without \`[href]\` only the link text is extracted, not the URL
+- For **images**: use \`img\` — the \`src\` is automatically extracted (no need for \`[src]\` suffix)
+- For any other attribute value: append \`[attr-name]\` to the selector, e.g. \`div[title]\`, \`span[aria-label]\`
+- Default behavior: if no attribute bracket is in the selector, \`textContent\` is extracted
+- For non-standard attribute values, name the field descriptively, e.g. "Rating (aria-label)" for \`[aria-label]\`
 
-Sites that block synthetic events
+### Important: Definition Lists (\`<dl>\`, \`<dt>\`, \`<dd>\`)
+For key-value data in definition lists (Wikipedia infoboxes, product specs, contact info):
+- The container is typically the \`<dl>\` or a wrapper around it
+- Each \`<dt>\` is a label/key and each \`<dd>\` is the corresponding value
+- Use \`dt:nth-of-type(n)\` and \`dd:nth-of-type(n)\` for positional targeting within the container
+- Or use content-based selectors if \`<dt>\` elements have distinguishing classes
+- Field names should reflect the label text (e.g. \"Born\", \"Population\", \"Capital\")
 
-You can use it directly in your extension.
+### Important: Tables with Multi-Row Headers
+For \`<table>\` elements with multiple header rows (\`<thead>\` with 2+ \`<tr>\`s) or nested column groups:
+- Trace the hierarchical relationship between \`<thead>\` header rows and data cells
+- Use the \`headers\` attribute on \`<td>\` when present to determine which \`<th id="...">\` headers apply to that cell
+- Build each field name from ONLY the headers that apply to that cell (via structure or \`headers\` attr), not all headers in the row
+- Combine parent header + specific subheader into one logical field name (top to bottom), e.g. "2024 Oct" + "Week ending Oct 29" = "Week ending Oct 29" (do NOT cross-combine unrelated groups)
+- If a top header is a period label (e.g. "2024 Oct") and the next row has its own subheaders ("Oct 29", "Nov 05"), name fields by the subheader: "Week ending Oct 29", "Week ending Nov 05" — do NOT prepend the period unless the HTML explicitly encodes that relationship
+- Remove duplicate words when concatenating (e.g. do not create "Oct Oct 29")
+- Prefer actual header text over generic names like "Column 1" or "Value 3"
+- Ensure the same column maps to the same field name for every row
 
-🔥 1. content.js
+## CSS SELECTOR RESTRICTIONS
 
-This injects the real script + sends commands to it.
+**FORBIDDEN - DO NOT USE:**
+- Any selector with backslashes: \`\\:\`, \`\\\\:\`, \`md\\:\`, \`sm\\\\:\`, \`lg\\\\:\`, \`xl\\:\`
+- Framework responsive prefixes: \`md:\`, \`lg:\`, \`xl:\`, \`sm:\`, \`2xl:\`
+- Arbitrary values with brackets: \`[1200px]\`, \`[calc(100%-2rem)]\`
+- Multiple chained classes without spaces: \`.class1.class2.class3.class4\` (use single meaningful class)
+- XPath syntax: \`text()\`, \`~ text()\`, \`parent::\`
+- jQuery extensions: \`:contains()\`, \`:has()\`
+- Non-standard CSS: \`::text\`
+- Framework escapes: \`hover\\:\`, \`focus\\:\`, \`active\\:\`
+- Complex functions not in CSS spec
+- Selectors with more than 3 chained classes
+- Selectors starting with \`~\` (general sibling combinator not supported in querySelector context)
+- Combining class filter with \`:nth-of-type\`: \`tag.class:nth-of-type(n)\` — use \`tag:nth-of-type(n)\` without class instead
 
-// Inject real script
-(function inject() {
-    const s = document.createElement("script");
-    s.src = chrome.runtime.getURL("injected.js");
-    document.documentElement.appendChild(s);
-    s.remove();
-})();
 
-// Send action to injected.js
-function sendAction(type, element, value = null) {
-    const id = "ext-" + Math.random().toString(36).slice(2);
-    element.dataset.extid = id;
+**For framework classes:** Use base class only (from \`md:col-span-2\` use \`.col-span-2\`)
 
-    window.dispatchEvent(
-        new CustomEvent("EXT_ACTION", {
-            detail: { id, type, value }
-        })
-    );
-}
+**For responsive/conditional classes:** Use only the base classes without modifiers (e.g., use \`col-span-2\` instead of \`md:col-span-1\`)
 
-// Helper APIs you can call from your extension logic
+**For text content:** Use the element selector directly (e.g., \`p\`, \`span\`, \`strong\`) - the text content will be extracted automatically.
 
-export function realClick(element) {
-    sendAction("click", element);
-}
+## TARGET DATA TYPES EXAMPLES
 
-export function realHover(element) {
-    sendAction("hover", element);
-}
+**Travel Bookings**: airline, flight number, times, airports, duration, price, stops, class, availability, booking link
+**Hotels**: name, location, price, rating, amenities, images, cancellation policy
+**Transport**: train/bus operator, times, stations, class, seats, fare, duration
+**Rentals**: vehicle model, company, daily rate, fuel type, transmission, location
+**Search Results**: title, URL, snippet/summary
+**Products**: name, price, image, rating, link
+**Reviews**: reviewer, rating, text, date
+**Jobs**: title, company, location, date, description
+**Forums**: username, comment text, timestamp
+**News**: title, link, summary, source, date
+**YouTube Comments**: username, comment text, likes, timestamp  
+**Instagram Posts**: username, image/video URL, caption, likes, comments count, timestamp  
+**Reddit Comments**: username, comment text, score/votes, timestamp (each comment is ONE row — never aggregate parent+replies into one row)
+**Reddit Sections**: post title, subreddit, author, upvotes, comments count, timestamp
+**Corporate Events**: event title, date/time, type (earnings/conference), time zones, dial-in numbers, webcast links, registration links
 
-export function realInput(element, text) {
-    sendAction("input", element, text);
-}
+## OUTPUT FORMAT
 
-export function realFocus(element) {
-    sendAction("focus", element);
-}
+Return a JSON array with ONE repeating block type:
 
-🔥 2. injected.js
-
-This runs inside the page as trusted code.
-
-console.log("%cInjected script loaded", "color: green; font-weight: bold;");
-
-window.addEventListener("EXT_ACTION", (e) => {
-    const { id, type, value } = e.detail;
-
-    const el = document.querySelector(`[data-extid="${id}"]`);
-    if (!el) return;
-
-    switch (type) {
-
-        // REAL CLICK
-        case "click":
-            ["mousedown", "mouseup", "click"].forEach(ev =>
-                el.dispatchEvent(new MouseEvent(ev, {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window
-                }))
-            );
-            break;
-
-        // REAL HOVER
-        case "hover":
-            ["mouseover", "mouseenter", "mousemove"].forEach(ev =>
-                el.dispatchEvent(new MouseEvent(ev, {
-                    bubbles: true,
-                    cancelable: true,
-                    view: window
-                }))
-            );
-            break;
-
-        // REAL FOCUS
-        case "focus":
-            el.focus({ preventScroll: false });
-            break;
-
-        // REAL INPUT (React/Vue/Angular safe)
-        case "input":
-            const lastValue = el.value;
-            el.value = value;
-
-            const event = new Event("input", { bubbles: true });
-            event.simulated = true;
-
-            // React value tracker handling
-            const tracker = el._valueTracker;
-            if (tracker) tracker.setValue(lastValue);
-
-            el.dispatchEvent(event);
-            break;
+\`\`\`json
+[
+  {
+    "description": "Brief description of the block type",
+    "selector": "CSS selector for the container",
+    "fields": {
+      "Field Name": "relative CSS selector within container",
+      "Another Field": "relative CSS selector within container"
     }
+  }
+]
+\`\`\`
 
-    // cleanup optional:
-    delete el.dataset.extid;
-});
+## EXAMPLE OUTPUT 
 
-🔥 How to use it
+**For repeating blocks:**
+\`\`\`json
+[
+  {
+    "description": "Google search result entry",
+    "selector": "div.g",
+    "fields": {
+      "Title": "h3",
+      "URL": "a[href]",
+      "Snippet": "div.VwiC3b"
+    }
+  }
+]
+\`\`\`
 
-Anywhere in your content script:
+**For single-event content:**
 
-import { realClick, realHover, realInput, realFocus } from "./content.js";
+\`\`\`json
+[
+  {
+    "description": "Corporate earnings event details",
+    "selector": "div.builder-badc4742b4434c31aec84ffdd4d34370",
+    "fields": {
+      "Month": "span#d-month",
+      "Day": "span#d-day",
+      "Year": "span#d-year",
+      "Event Title": ".builder-52e7039f25934b20943c7002702e3c2d .builder-text",
+      "Earnings Release": ".builder-a61a3127913c434f94f8b1d4530cbcff p:nth-of-type(1)",
+      "Earnings Call": ".builder-a61a3127913c434f94f8b1d4530cbcff p:nth-of-type(2)",
+      "Participant Dial-In": ".builder-a61a3127913c434f94f8b1d4530cbcff p:nth-of-type(4)",
+      "International Toll-Free Access": ".builder-a61a3127913c434f94f8b1d4530cbcff a[href*='mimecastprotect']",
+      "Webcast Registration": ".builder-a61a3127913c434f94f8b1d4530cbcff a[href*='webcast']"
+    }
+  }
+]
 
-// click button
-const btn = document.querySelector("#login");
-realClick(btn);
+\`\`\`
 
-// hover element
-const menu = document.querySelector(".profile-menu");
-realHover(menu);
+## REQUIREMENTS
 
-// input text
-const input = document.querySelector("input[name='email']");
-realInput(input, "test@example.com");
+✓ Return only ONE block type (most prominent/numerous if multiple exist)
+✓ Use standard CSS selectors compatible with querySelector
+✓ Use absolute selectors (not parent::, preceding-sibling, following-sibling, xpath). Exception: \`:scope >\` IS allowed for field selectors in nested/threaded content
+✓ All fields must exist in ALL container instances
+✓ Exclude unique elements (headers, footers, one-off content)
+✓ Output valid JSON only (no commentary)
+✓ Concise but precise selectors
 
-// focus
-realFocus(input);
+✗ Do NOT include fields missing from any container instance
+✗ Do NOT mix different block types
+✗ Do NOT use relative selectors or pseudo-classes beyond basic CSS
+✗ Do NOT use jQuery extension, or anything that is not part of CSS specification
+✗ Do NOT select pagination controls (next/prev buttons, page numbers) as repeating data blocks
+✗ Do NOT select duplicate responsive containers — if you see near-identical structures repeated (e.g. one for mobile, one for desktop with \`hidden\` class), prefer the visible one. However, elements hidden until hover/interaction (e.g. sizes on product cards) ARE valid data — do not skip them
+✗ Do NOT use auto-generated/hashed class names as primary selectors when stable alternatives exist
 
-✔ Why This Works
-
-injected.js runs inside the actual page context
-
-Events are treated as trusted
-
-React, Vue, Angular, and Shadow DOM all receive real events
-
-Nothing is blocked by Chrome’s extension security model
-
-It uses a unique dataset ID so you can target any exact element
-
-Want a version that also supports:
-➤ real keydown/keypress/keyup
-➤ real drag/drop
-➤ shadow DOM auto-piercing
-➤ human-like typing simulation (char-by-char)
-
-Just tell me which features you need, and I’ll extend it.
-
-
-
-
-<svg viewBox="38 09 218 258" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <!-- Soft shadow -->
-    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
-      <feOffset dx="0" dy="4" result="offsetblur"/>
-      <feComponentTransfer>
-        <feFuncA type="linear" slope="0.15"/>
-      </feComponentTransfer>
-      <feMerge>
-        <feMergeNode/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-    
-    <!-- Magical Glow -->
-    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-    
-    <!-- Soft Mouth Glow -->
-    <filter id="mouthGlow" x="-50%" y="-50%" width="200%" height="200%">
-      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-    
-    <!-- iMac G4 Base Gradient (White/Silver) -->
-    <radialGradient id="baseGradient" cx="50%" cy="20%" r="80%">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#d1d5db"/>
-    </radialGradient>
-
-    <!-- Chrome Neck Gradient -->
-    <linearGradient id="chromeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#9ca3af"/>
-      <stop offset="30%" stop-color="#f3f4f6"/>
-      <stop offset="50%" stop-color="#ffffff"/>
-      <stop offset="70%" stop-color="#f3f4f6"/>
-      <stop offset="100%" stop-color="#9ca3af"/>
-    </linearGradient>
-    
-    <!-- Head Gradient -->
-    <linearGradient id="headGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#ffffff"/>
-      <stop offset="100%" stop-color="#f3f4f6"/>
-    </linearGradient>
-    
-    <!-- Screen Gradient -->
-    <linearGradient id="screenGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#1f2937"/>
-      <stop offset="100%" stop-color="#111827"/>
-    </linearGradient>
-    
-    <!-- Eye glow gradient (Sparkling Cyan) -->
-    <radialGradient id="eyeGlow" cx="40%" cy="40%">
-      <stop offset="0%" stop-color="#a5f3fc"/>
-      <stop offset="50%" stop-color="#22d3ee"/>
-      <stop offset="100%" stop-color="#0891b2"/>
-    </radialGradient>
-  </defs>
-
-  <!-- iMac G4 Base (Hemisphere) -->
-  <g id="base" transform="translate(150, 230)">
-    <!-- Dome shape (smaller) -->
-    <path d="M-45 0 C-45 -28 -25 -42 0 -42 C 25 -42 45 -28 45 0 L 45 10 C 45 18 25 25 0 25 C -25 25 -45 18 -45 10 Z" fill="url(#baseGradient)" filter="url(#shadow)"/>
-    <!-- Apple logo detail (subtle, smaller) -->
-    <circle cx="0" cy="-18" r="6" fill="#9ca3af" opacity="0.3"/>
-  </g>
-
-  <!-- Chrome Neck (Articulated Arm) -->
-  <g id="neck">
-    <!-- Main arm stem -->
-    <path d="M150 190 L150 150" stroke="url(#chromeGradient)" stroke-width="14" stroke-linecap="round"/>
-    <!-- Joint at base -->
-    <circle cx="150" cy="190" r="10" fill="#d1d5db" stroke="#9ca3af" stroke-width="1"/>
-    <!-- Joint at head -->
-    <circle cx="150" cy="150" r="8" fill="#d1d5db" stroke="#9ca3af" stroke-width="1"/>
-  </g>
-
-  <!-- Head Group (Floating Screen) -->
-  <g id="head">
-    <!-- Animation: Gentle Float & Tilt -->
-    <animateTransform attributeName="transform" type="rotate" 
-      values="0 150 150; -6 150 150; 6 150 150; 0 150 150" 
-      keyTimes="0; 0.3; 0.7; 1"
-      dur="8s" repeatCount="indefinite"/>
-      
-    <!-- Screen Shake (Excitement!) -->
-    <animateTransform attributeName="transform" type="translate" additive="sum"
-      values="0,0; 0,0; 0,0; 0,-5; 0,-4; 0,-5; 0,0"
-      keyTimes="0; 0.7; 0.73; 0.76; 0.79; 0.82; 1"
-      dur="6s" repeatCount="indefinite"/>
-
-    <!-- Cute Antenna (Hair Tufts) - Behind Screen -->
-    <g id="antenna">
-      <!-- Left Antenna -->
-      <g>
-        <rect x="135" y="38" width="6" height="28" rx="3" fill="url(#chromeGradient)"/>
-        <circle cx="138" cy="36" r="8" fill="#06B6D4"/>
-        <!-- Natural Hair Sway & Bounce -->
-        <animateTransform attributeName="transform" type="rotate" additive="sum"
-          values="0 138 66; -5 138 66; 3 138 66; -2 138 66; 0 138 66"
-          keyTimes="0; 0.3; 0.5; 0.7; 1"
-          dur="3s" repeatCount="indefinite"/>
-        <animateTransform attributeName="transform" type="translate" additive="sum"
-          values="0,0; 0,-2; 0,1; 0,-1; 0,0"
-          keyTimes="0; 0.3; 0.5; 0.7; 1"
-          dur="3s" repeatCount="indefinite"/>
-      </g>
-      
-      <!-- Right Antenna -->
-      <g>
-        <rect x="159" y="38" width="6" height="28" rx="3" fill="url(#chromeGradient)"/>
-        <circle cx="162" cy="36" r="8" fill="#06B6D4"/>
-        <!-- Natural Hair Sway & Bounce (offset) -->
-        <animateTransform attributeName="transform" type="rotate" additive="sum"
-          values="0 162 66; 5 162 66; -3 162 66; 2 162 66; 0 162 66"
-          keyTimes="0; 0.3; 0.5; 0.7; 1"
-          dur="3s" repeatCount="indefinite" begin="0.15s"/>
-        <animateTransform attributeName="transform" type="translate" additive="sum"
-          values="0,0; 0,-2; 0,1; 0,-1; 0,0"
-          keyTimes="0; 0.3; 0.5; 0.7; 1"
-          dur="3s" repeatCount="indefinite" begin="0.15s"/>
-      </g>
-    </g>
-
-    <!-- Screen Bezel (White) -->
-    <rect x="60" y="60" width="180" height="140" rx="16" fill="url(#headGradient)" stroke="#e5e7eb" stroke-width="2" filter="url(#shadow)"/>
-    
-    <!-- Screen (Black) -->
-    <rect x="75" y="75" width="150" height="110" rx="6" fill="url(#screenGradient)"/>
-
-    <!-- COZMO EYES GROUP -->
-    <g>
-      <!-- Animation: Look Around & Happy Bounce -->
-      <animateTransform attributeName="transform" type="translate" 
-        values="0,0; -5,0; 5,0; 0,0; 0,-4; 0,0" 
-        keyTimes="0; 0.25; 0.5; 0.75; 0.85; 1"
-        dur="6s" repeatCount="indefinite"/>
-        <!-- MOUTH (Curious circle when blinking/eyes moving, then happy smile) -->
-        <!-- Curious Oval Mouth - Cute cartoon robot style -->
-        <g opacity="1">
-          <animate attributeName="opacity" values="1;1;0;0;1;1" keyTimes="0;0.71;0.72;0.88;0.98;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
-          
-          <!-- Outer glow - cute round "O" shape -->
-          <ellipse cx="150" cy="165" rx="9" ry="10" fill="#22d3ee" filter="url(#mouthGlow)">
-            <!-- Surprised/curious wobble -->
-            <animate attributeName="rx" values="9;10;9;8;9" keyTimes="0;0.3;0.5;0.8;1" dur="2.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
-            <animate attributeName="ry" values="10;9;11;10;10" keyTimes="0;0.3;0.5;0.8;1" dur="2.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
-          </ellipse>
-          
-          <!-- Inner dark "O" - gives cartoon depth -->
-          <ellipse cx="150" cy="166" rx="6" ry="7" fill="#0e7490" opacity="0.85">
-            <animate attributeName="rx" values="6;7;6;5;6" keyTimes="0;0.3;0.5;0.8;1" dur="2.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
-            <animate attributeName="ry" values="7;6;8;7;7" keyTimes="0;0.3;0.5;0.8;1" dur="2.5s" repeatCount="indefinite" calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
-          </ellipse>
-          
-          <!-- Cute top lip highlight arc -->
-          <path d="M143 162 Q150 159, 157 162" stroke="#a5f3fc" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.7"/>
-          
-          <!-- Main sparkle - bouncy -->
-          <circle cx="145" cy="161" r="2" fill="#ffffff" opacity="0.95">
-            <animate attributeName="r" values="2;2.5;2" dur="1.5s" repeatCount="indefinite"/>
-            <animate attributeName="opacity" values="0.95;1;0.95" dur="1.5s" repeatCount="indefinite"/>
-          </circle>
-          
-          <!-- Secondary tiny sparkle -->
-          <circle cx="155" cy="162" r="1.2" fill="#cffafe" opacity="0.8">
-            <animate attributeName="opacity" values="0.8;0.4;0.8" dur="2s" repeatCount="indefinite"/>
-          </circle>
-          
-          <!-- Cute wobble motion for the whole mouth -->
-          <animateTransform attributeName="transform" type="translate"
-            values="0,0; 0,-0.5; 0,0.5; 0,0"
-            keyTimes="0; 0.3; 0.6; 1"
-            dur="3s" repeatCount="indefinite" calcMode="spline"
-            keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
-        </g>
-        
-        <!-- Happy Smile Mouth -->
-        <path d="M132 160 C140 168, 160 168, 168 160" stroke="#22d3ee" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0">
-          <animate attributeName="opacity"
-            values="0;0;1;1;0;0"
-            keyTimes="0;0.70;0.72;0.88;0.89;1"
-            dur="6s" repeatCount="indefinite"
-            calcMode="spline"
-            keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
-        </path>
-
-      <!-- LEFT EYE -->
-      <g>
-        <!-- Eye Socket Background (Pill Shape) -->
-        <rect x="104" y="98" width="40" height="50" rx="20" fill="#0f172a"/>
-        
-        <!-- Glowing Eye (Path for Smooth Morphing - Pill Shape) -->
-        <path fill="#22d3ee" filter="url(#glow)">
-           <!-- Morph: Pill -> Happy Reverse Arc (^) -> Pill -->
-           <animate attributeName="d" 
-                 values="M 108 118 a 16 16 0 0 1 32 0 v 10 a 16 16 0 0 1 -32 0 z;
-                   M 108 118 a 16 16 0 0 1 32 0 v 10 a 16 16 0 0 1 -32 0 z;
-                   M 108 128 q 16 -30 32 0 v 6 q -16 -30 -32 0 z;
-                   M 108 118 a 16 16 0 0 1 32 0 v 10 a 16 16 0 0 1 -32 0 z"
-             keyTimes="0; 0.72; 0.78; 1"
-             dur="6s" repeatCount="indefinite"/>
-             
-           <!-- Eyebrow Bounce (Energetic Tilt) -->
-           <animateTransform attributeName="transform" type="rotate"
-             values="0 114 123; 0 114 123; 0 114 123; -12 114 110; -8 114 110; -12 114 110; 0 114 123"
-             keyTimes="0; 0.7; 0.73; 0.76; 0.79; 0.82; 1"
-             dur="6s" repeatCount="indefinite"/>
-        </path>
-        
-        <!-- Inner Detail (Morphing - Pill Shape) -->
-        <path fill="#67e8f9" opacity="0.6">
-           <animate attributeName="d" 
-                 values="M 112 120 a 12 12 0 0 1 24 0 v 6 a 12 12 0 0 1 -24 0 z;
-                   M 112 120 a 12 12 0 0 1 24 0 v 6 a 12 12 0 0 1 -24 0 z;
-                   M 112 130 q 12 -26 24 0 v 4 q -12 -26 -24 0 z;
-                   M 112 120 a 12 12 0 0 1 24 0 v 6 a 12 12 0 0 1 -24 0 z"
-             keyTimes="0; 0.72; 0.78; 1"
-             dur="6s" repeatCount="indefinite"/>
-             
-           <animateTransform attributeName="transform" type="rotate"
-             values="0 114 123; 0 114 123; 0 114 123; -12 114 110; -8 114 110; -12 114 110; 0 114 123"
-             keyTimes="0; 0.7; 0.73; 0.76; 0.79; 0.82; 1"
-             dur="6s" repeatCount="indefinite"/>
-        </path>
-        
-        <!-- Main Highlight (Smaller) - Moves left, right, and down -->
-        <ellipse cx="120" cy="115" rx="5" ry="6" fill="#ffffff" opacity="0.95">
-           <animate attributeName="cx" values="120;126;126;122;120" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
-           <animate attributeName="cy" values="115;115;125;125;115" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
-           <animate attributeName="opacity" values="0.95; 0.95; 0; 0.95" keyTimes="0; 0.72; 0.85; 1" dur="6s" repeatCount="indefinite"/>
-        </ellipse>
-        
-        <!-- Secondary Sparkle (Adjusted) - Moves with highlight -->
-        <circle cx="127" cy="120" r="2.5" fill="#a5f3fc" opacity="0.8">
-           <animate attributeName="cx" values="127;133;133;129;127" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
-           <animate attributeName="cy" values="120;120;130;130;120" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
-           <animate attributeName="opacity" values="0.8; 0.5; 0.8" dur="3s" repeatCount="indefinite"/>
-        </circle>
-        
-        <!-- Animated Shimmer (Adjusted) -->
-        <ellipse cx="120" cy="116" rx="5" ry="7" fill="#cffafe" opacity="0">
-           <animate attributeName="opacity" values="0; 0.7; 0; 0; 0" keyTimes="0; 0.15; 0.3; 0.5; 1" dur="4s" repeatCount="indefinite"/>
-        </ellipse>
-        
-        <!-- SPLIT BLINK: Top Lid (Left Eye - Blink twice before smile) -->
-        <rect x="104" y="98" width="40" height="29" rx="20" fill="#0f172a" opacity="0">
-           <animate attributeName="opacity" values="0;0;1;0;0;1;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
-           <animate attributeName="height" values="0;0;29;0;0;29;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
-        </rect>
-        <!-- SPLIT BLINK: Bottom Lid (Left Eye - Blink twice before smile) -->
-        <rect x="104" y="119" width="40" height="29" rx="20" fill="#0f172a" opacity="0">
-           <animate attributeName="opacity" values="0;0;1;0;0;1;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
-           <animate attributeName="y" values="148;148;119;148;148;119;148;148" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
-           <animate attributeName="height" values="0;0;29;0;0;29;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
-        </rect>
-      </g>
-
-      <!-- RIGHT EYE -->
-      <g>
-        <!-- Eye Socket Background (Pill Shape) -->
-        <rect x="156" y="98" width="40" height="50" rx="20" fill="#0f172a"/>
-        
-        <!-- Glowing Eye (Path for Smooth Morphing - Pill Shape) -->
-        <path fill="#22d3ee" filter="url(#glow)">
-           <!-- Morph: Pill -> Happy Reverse Arc (^) -> Pill -->
-           <animate attributeName="d" 
-                 values="M 160 118 a 16 16 0 0 1 32 0 v 10 a 16 16 0 0 1 -32 0 z;
-                   M 160 118 a 16 16 0 0 1 32 0 v 10 a 16 16 0 0 1 -32 0 z;
-                   M 160 128 q 16 -30 32 0 v 6 q -16 -30 -32 0 z;
-                   M 160 118 a 16 16 0 0 1 32 0 v 10 a 16 16 0 0 1 -32 0 z"
-             keyTimes="0; 0.72; 0.78; 1"
-             dur="6s" repeatCount="indefinite"/>
-             
-           <!-- Eyebrow Bounce (Energetic Tilt) -->
-           <animateTransform attributeName="transform" type="rotate"
-             values="0 186 123; 0 186 123; 0 186 123; 12 186 110; 8 186 110; 12 186 110; 0 186 123"
-             keyTimes="0; 0.7; 0.73; 0.76; 0.79; 0.82; 1"
-             dur="6s" repeatCount="indefinite"/>
-        </path>
-        
-        <!-- Inner Detail (Morphing - Pill Shape) -->
-        <path fill="#67e8f9" opacity="0.6">
-           <animate attributeName="d" 
-                 values="M 164 120 a 12 12 0 0 1 24 0 v 6 a 12 12 0 0 1 -24 0 z;
-                   M 164 120 a 12 12 0 0 1 24 0 v 6 a 12 12 0 0 1 -24 0 z;
-                   M 164 130 q 12 -26 24 0 v 4 q -12 -26 -24 0 z;
-                   M 164 120 a 12 12 0 0 1 24 0 v 6 a 12 12 0 0 1 -24 0 z"
-             keyTimes="0; 0.72; 0.78; 1"
-             dur="6s" repeatCount="indefinite"/>
-             
-           <animateTransform attributeName="transform" type="rotate"
-             values="0 186 123; 0 186 123; 0 186 123; 12 186 110; 8 186 110; 12 186 110; 0 186 123"
-             keyTimes="0; 0.7; 0.73; 0.76; 0.79; 0.82; 1"
-             dur="6s" repeatCount="indefinite"/>
-        </path>
-        
-        <!-- Main Highlight (Smaller) - Moves left, right, and down -->
-        <ellipse cx="172" cy="115" rx="5" ry="6" fill="#ffffff" opacity="0.95">
-           <animate attributeName="cx" values="172;178;178;174;172" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
-           <animate attributeName="cy" values="115;115;125;125;115" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
-           <animate attributeName="opacity" values="0.95; 0.95; 0; 0.95" keyTimes="0; 0.72; 0.85; 1" dur="6s" repeatCount="indefinite"/>
-        </ellipse>
-        
-        <!-- Secondary Sparkle (Adjusted) - Moves with highlight -->
-        <circle cx="179" cy="120" r="2.5" fill="#a5f3fc" opacity="0.8">
-           <animate attributeName="cx" values="179;185;185;181;179" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
-           <animate attributeName="cy" values="120;120;130;130;120" keyTimes="0;0.15;0.40;0.60;1" dur="6s" repeatCount="indefinite" calcMode="spline" keySplines="0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1; 0.3 0 0.3 1"/>
-           <animate attributeName="opacity" values="0.8; 0.5; 0.8" dur="3s" repeatCount="indefinite"/>
-        </circle>
-        
-        <!-- Animated Shimmer (Adjusted) -->
-        <ellipse cx="172" cy="116" rx="5" ry="7" fill="#cffafe" opacity="0">
-           <animate attributeName="opacity" values="0; 0.7; 0; 0; 0" keyTimes="0; 0.15; 0.3; 0.5; 1" dur="4s" repeatCount="indefinite"/>
-        </ellipse>
-        
-        <!-- SPLIT BLINK: Top Lid (Right Eye - Blink twice before smile) -->
-          <rect x="156" y="98" width="40" height="29" rx="20" fill="#0f172a" opacity="0">
-            <animate attributeName="opacity" values="0;0;1;0;0;1;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
-            <animate attributeName="height" values="0;0;29;0;0;29;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
-        </rect>
-        <!-- SPLIT BLINK: Bottom Lid (Right Eye - Blink twice before smile) -->
-          <rect x="156" y="119" width="40" height="29" rx="20" fill="#0f172a" opacity="0">
-            <animate attributeName="opacity" values="0;0;1;0;0;1;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
-            <animate attributeName="y" values="148;148;119;148;148;119;148;148" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
-            <animate attributeName="height" values="0;0;29;0;0;29;0;0" keyTimes="0;0.28;0.30;0.34;0.50;0.52;0.56;1" dur="6s" repeatCount="indefinite"/>
-        </rect>
-      </g>
-    </g>
-  </g>
-</svg>
-
-
-
-
+## VALIDATION CHECKLIST
+Before outputting:
+1. Container selector identified and verified across all instances
+2. Each field exists in 100% of containers  
+3. Each field selector resolves to EXACTLY ONE element per container (not multiple due to nested children)
+4. Selectors are valid CSS paths
+5. **No selectors contain backslashes or framework prefixes**
+6. **Each selector uses maximum 2-3 classes**
+7. JSON is valid
+8. **For threaded/nested content**: verify the container does NOT include nested reply subtrees — each comment must be its own row
+9. **Container is not a pagination/navigation element** — it must contain actual data content
+10. **No duplicate responsive containers selected** — if HTML has both mobile and desktop versions of the same block, select only the visible one (but hover-revealed content is valid)
+`;
+This paste expires in <1 hour. Public IP access. Share whatever you see with others in seconds with Context.Terms of ServiceReport this
