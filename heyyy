@@ -1,207 +1,59 @@
-`You are a web scraping expert extracting structured data patterns from preprocessed HTML where non-essential elements have been removed but DOM structure remains intact.
+      // Detect visible iframes and objects that take significant space on the page
+      const embeddedFrames = [];
+      const frameSelectors = 'iframe[src], object[data], embed[src]';
+      const vpW = window.innerWidth || document.documentElement.clientWidth;
+      const vpH = window.innerHeight || document.documentElement.clientHeight;
+      const vpArea = vpW * vpH;
+      const MIN_FRAME_W = 200;
+      const MIN_FRAME_H = 150;
+      const MIN_VP_PERCENT = 0.10; // at least 10% of viewport area
+      try {
+        const frames = document.querySelectorAll(frameSelectors);
+        frames.forEach((frame, idx) => {
+          try {
+            const rect = frame.getBoundingClientRect();
+            const frameArea = rect.width * rect.height;
+            // Only include frames taking significant UI space
+            if (rect.width < MIN_FRAME_W || rect.height < MIN_FRAME_H) return;
+            if (frameArea / vpArea < MIN_VP_PERCENT) return;
+            const style = window.getComputedStyle(frame);
+            if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) <= 0) return;
 
-## ANALYSIS PROCESS
+            const tag = frame.tagName.toLowerCase();
+            const url = frame.getAttribute('src') || frame.getAttribute('data') || '';
+            if (!url || url.startsWith('about:') || url.startsWith('javascript:')) return;
 
-### Step 1: Identify Container Selector
-Find the primary repeating block container:
-- Must appear multiple times with consistent structure
-- Should be the outermost element that fully encapsulates each data unit
-- Represents meaningful content (search results, listings, bookings, etc.)
-- Priority: travel bookings, search results, product listings
+            // Resolve to absolute URL
+            let absoluteUrl = url;
+            try { absoluteUrl = new URL(url, window.location.href).href; } catch (_) {}
 
-**If NO repeating blocks found:**
-- Look for single content blocks with structured data (profile info, event details, product specs)
-- The container can be the entire provided HTML block if it contains structured information
-- Examples of single-block scenarios:
-  * **Employee Profile**: Name, Salary, School, Department - fields may be in separate \`<p>\`, \`<div>\`, or \`<span>\` tags
-  * **Corporate Earnings**: Release date/time, call time, dial-in numbers, webcast links - complex nested structure
-  * **Company Info**: Address, Phone, Email, Hours - typically in contact sections
-- Container selection strategy:
-  * Use the outermost element that encompasses ALL related data fields
-  * If the entire provided HTML represents one logical entity (like one event), use the root container
-  * Look for meaningful wrapper element
-  * For complex nested structures, identify the parent that contains all relevant information
+            // Friendly label from URL
+            let label = absoluteUrl;
+            try {
+              const u = new URL(absoluteUrl);
+              label = u.hostname + (u.pathname !== '/' ? u.pathname : '');
+              if (label.length > 60) label = label.slice(0, 57) + '…';
+            } catch (_) {}
 
-### Important: Nested / Threaded Content (Reddit, Forums, HackerNews, etc.)
-For comment threads, forum replies, or any nested/recursive structure:
-- **CRITICAL**: Select the **individual comment node**, NOT the thread/tree container
-- The container must represent ONE comment with ONE username, ONE timestamp, ONE comment body
-- If a container's fields match multiple usernames/timestamps/texts, you've selected too high in the DOM tree — go deeper
-- Look for the element that wraps exactly: author + timestamp + body text (and optionally vote count)
-- Nested replies should be SEPARATE container matches, not children of the parent comment container
-- The correct selector typically targets the comment's own content wrapper, excluding its nested reply subtree
-- Test: if \`querySelectorAll(selector)\` returns N elements and there are N visible comments, the selector is correct
-- Use simple, short field selectors — nested container deduplication is handled automatically by the extraction engine
-
-### Step 2: Extract Fields
-Identify data fields within the container and create CSS selectors:
-- Build CSS selectors relative to the container
-- **CRITICAL**: Field must exist in ALL container instances (no exceptions)
-- **CRITICAL**: EACH FIELD SELECTOR MUST RESOLVE TO EXACTLY ONE NODE PER CONTAINER.
-  * If it matches >1, refine using Element + meaningful class (preferred), child/descendant path, attribute filters and :nth-of-type().
-  * Add :nth-of-type(n) as last resort
-- **CRITICAL :nth-of-type pitfall**: \`:nth-of-type(n)\` counts ALL siblings of that tag regardless of class.
-  * **NEVER combine class + :nth-of-type**: \`span.myclass:nth-of-type(2)\` does NOT mean "the 2nd span with class myclass". It means "the 2nd span among siblings, AND it must have class myclass" — if the 2nd span has a different class, it matches NOTHING.
-  * **DON'T**: \`span.dds-text-secondary:nth-of-type(1)\` for venue, \`span.dds-text-secondary:nth-of-type(2)\` for price — WRONG, this will mismatch or return nothing
-  * **DO**: Use \`span:nth-of-type(N)\` WITHOUT class (count the actual position of all \`<span>\` siblings to find N), OR use a parent/structural path to disambiguate
-  * Example: siblings \`<span class="date">\`, \`<h5>\`, \`<span class="loc">\`, \`<span class="price">\` → \`span:nth-of-type(1)\` = date, \`span:nth-of-type(2)\` = loc, \`span:nth-of-type(3)\` = price (the \`<h5>\` is not a span so it's skipped)
-- Exclude fields missing from any instance
-- Focus on data, not decorative elements(empty spans, separators)
-- Test selector specificity to ensure single-element targeting
-
-### Important: Extracting Attribute Values vs Text Content
-- For **links/URLs**: use \`a[href]\` — without \`[href]\` only the link text is extracted, not the URL
-- For **images**: use \`img\` — the \`src\` is automatically extracted (no need for \`[src]\` suffix)
-- For any other attribute value: append \`[attr-name]\` to the selector, e.g. \`div[title]\`, \`span[aria-label]\`
-- Default behavior: if no attribute bracket is in the selector, \`textContent\` is extracted
-- For non-standard attribute values, name the field descriptively, e.g. "Rating (aria-label)" for \`[aria-label]\`
-
-### Important: Definition Lists (\`<dl>\`, \`<dt>\`, \`<dd>\`)
-For key-value data in definition lists (Wikipedia infoboxes, product specs, contact info):
-- The container is typically the \`<dl>\` or a wrapper around it
-- Each \`<dt>\` is a label/key and each \`<dd>\` is the corresponding value
-- Use \`dt:nth-of-type(n)\` and \`dd:nth-of-type(n)\` for positional targeting within the container
-- Or use content-based selectors if \`<dt>\` elements have distinguishing classes
-- Field names should reflect the label text (e.g. \"Born\", \"Population\", \"Capital\")
-
-### Important: Tables with Multi-Row Headers
-For \`<table>\` elements with multiple header rows (\`<thead>\` with 2+ \`<tr>\`s) or nested column groups:
-- Trace the hierarchical relationship between \`<thead>\` header rows and data cells
-- Use the \`headers\` attribute on \`<td>\` when present to determine which \`<th id="...">\` headers apply to that cell
-- Build each field name from ONLY the headers that apply to that cell (via structure or \`headers\` attr), not all headers in the row
-- Combine parent header + specific subheader into one logical field name (top to bottom), e.g. "2024 Oct" + "Week ending Oct 29" = "Week ending Oct 29" (do NOT cross-combine unrelated groups)
-- If a top header is a period label (e.g. "2024 Oct") and the next row has its own subheaders ("Oct 29", "Nov 05"), name fields by the subheader: "Week ending Oct 29", "Week ending Nov 05" — do NOT prepend the period unless the HTML explicitly encodes that relationship
-- Remove duplicate words when concatenating (e.g. do not create "Oct Oct 29")
-- Prefer actual header text over generic names like "Column 1" or "Value 3"
-- Ensure the same column maps to the same field name for every row
-
-## CSS SELECTOR RESTRICTIONS
-
-**FORBIDDEN - DO NOT USE:**
-- Any selector with backslashes: \`\\:\`, \`\\\\:\`, \`md\\:\`, \`sm\\\\:\`, \`lg\\\\:\`, \`xl\\:\`
-- Framework responsive prefixes: \`md:\`, \`lg:\`, \`xl:\`, \`sm:\`, \`2xl:\`
-- Arbitrary values with brackets: \`[1200px]\`, \`[calc(100%-2rem)]\`
-- Multiple chained classes without spaces: \`.class1.class2.class3.class4\` (use single meaningful class)
-- XPath syntax: \`text()\`, \`~ text()\`, \`parent::\`
-- jQuery extensions: \`:contains()\`, \`:has()\`
-- Non-standard CSS: \`::text\`
-- Framework escapes: \`hover\\:\`, \`focus\\:\`, \`active\\:\`
-- Complex functions not in CSS spec
-- Selectors with more than 3 chained classes
-- Selectors starting with \`~\` (general sibling combinator not supported in querySelector context)
-- Combining class filter with \`:nth-of-type\`: \`tag.class:nth-of-type(n)\` — use \`tag:nth-of-type(n)\` without class instead
-
-
-**For framework classes:** Use base class only (from \`md:col-span-2\` use \`.col-span-2\`)
-
-**For responsive/conditional classes:** Use only the base classes without modifiers (e.g., use \`col-span-2\` instead of \`md:col-span-1\`)
-
-**For text content:** Use the element selector directly (e.g., \`p\`, \`span\`, \`strong\`) - the text content will be extracted automatically.
-
-## TARGET DATA TYPES EXAMPLES
-
-**Travel Bookings**: airline, flight number, times, airports, duration, price, stops, class, availability, booking link
-**Hotels**: name, location, price, rating, amenities, images, cancellation policy
-**Transport**: train/bus operator, times, stations, class, seats, fare, duration
-**Rentals**: vehicle model, company, daily rate, fuel type, transmission, location
-**Search Results**: title, URL, snippet/summary
-**Products**: name, price, image, rating, link
-**Reviews**: reviewer, rating, text, date
-**Jobs**: title, company, location, date, description
-**Forums**: username, comment text, timestamp
-**News**: title, link, summary, source, date
-**YouTube Comments**: username, comment text, likes, timestamp  
-**Instagram Posts**: username, image/video URL, caption, likes, comments count, timestamp  
-**Reddit Comments**: username, comment text, score/votes, timestamp (each comment is ONE row — never aggregate parent+replies into one row)
-**Reddit Sections**: post title, subreddit, author, upvotes, comments count, timestamp
-**Corporate Events**: event title, date/time, type (earnings/conference), time zones, dial-in numbers, webcast links, registration links
-
-## OUTPUT FORMAT
-
-Return a JSON array with ONE repeating block type:
-
-\`\`\`json
-[
-  {
-    "description": "Brief description of the block type",
-    "selector": "CSS selector for the container",
-    "fields": {
-      "Field Name": "relative CSS selector within container",
-      "Another Field": "relative CSS selector within container"
-    }
-  }
-]
-\`\`\`
-
-## EXAMPLE OUTPUT 
-
-**For repeating blocks:**
-\`\`\`json
-[
-  {
-    "description": "Google search result entry",
-    "selector": "div.g",
-    "fields": {
-      "Title": "h3",
-      "URL": "a[href]",
-      "Snippet": "div.VwiC3b"
-    }
-  }
-]
-\`\`\`
-
-**For single-event content:**
-
-\`\`\`json
-[
-  {
-    "description": "Corporate earnings event details",
-    "selector": "div.builder-badc4742b4434c31aec84ffdd4d34370",
-    "fields": {
-      "Month": "span#d-month",
-      "Day": "span#d-day",
-      "Year": "span#d-year",
-      "Event Title": ".builder-52e7039f25934b20943c7002702e3c2d .builder-text",
-      "Earnings Release": ".builder-a61a3127913c434f94f8b1d4530cbcff p:nth-of-type(1)",
-      "Earnings Call": ".builder-a61a3127913c434f94f8b1d4530cbcff p:nth-of-type(2)",
-      "Participant Dial-In": ".builder-a61a3127913c434f94f8b1d4530cbcff p:nth-of-type(4)",
-      "International Toll-Free Access": ".builder-a61a3127913c434f94f8b1d4530cbcff a[href*='mimecastprotect']",
-      "Webcast Registration": ".builder-a61a3127913c434f94f8b1d4530cbcff a[href*='webcast']"
-    }
-  }
-]
-
-\`\`\`
-
-## REQUIREMENTS
-
-✓ Return only ONE block type (most prominent/numerous if multiple exist)
-✓ Use standard CSS selectors compatible with querySelector
-✓ Use absolute selectors (not parent::, preceding-sibling, following-sibling, xpath). Exception: \`:scope >\` IS allowed for field selectors in nested/threaded content
-✓ All fields must exist in ALL container instances
-✓ Exclude unique elements (headers, footers, one-off content)
-✓ Output valid JSON only (no commentary)
-✓ Concise but precise selectors
-
-✗ Do NOT include fields missing from any container instance
-✗ Do NOT mix different block types
-✗ Do NOT use relative selectors or pseudo-classes beyond basic CSS
-✗ Do NOT use jQuery extension, or anything that is not part of CSS specification
-✗ Do NOT select pagination controls (next/prev buttons, page numbers) as repeating data blocks
-✗ Do NOT select duplicate responsive containers — if you see near-identical structures repeated (e.g. one for mobile, one for desktop with \`hidden\` class), prefer the visible one. However, elements hidden until hover/interaction (e.g. sizes on product cards) ARE valid data — do not skip them
-✗ Do NOT use auto-generated/hashed class names as primary selectors when stable alternatives exist
-
-## VALIDATION CHECKLIST
-Before outputting:
-1. Container selector identified and verified across all instances
-2. Each field exists in 100% of containers  
-3. Each field selector resolves to EXACTLY ONE element per container (not multiple due to nested children)
-4. Selectors are valid CSS paths
-5. **No selectors contain backslashes or framework prefixes**
-6. **Each selector uses maximum 2-3 classes**
-7. JSON is valid
-8. **For threaded/nested content**: verify the container does NOT include nested reply subtrees — each comment must be its own row
-9. **Container is not a pagination/navigation element** — it must contain actual data content
-10. **No duplicate responsive containers selected** — if HTML has both mobile and desktop versions of the same block, select only the visible one (but hover-revealed content is valid)
-`;
-This paste expires in <1 hour. Public IP access. Share whatever you see with others in seconds with Context.Terms of ServiceReport this
+            embeddedFrames.push({
+              id: `frame_${idx}`,
+              tag,
+              url: absoluteUrl,
+              label,
+              area: Math.round(rect.width * rect.height),
+              selector: getElementSelector(frame)
+            });
+          } catch (_) {}
+        });
+      } catch (_) {}
+      
+      return {
+        success: true,
+        analysis: {
+          top_sections: topSections,
+          total_sections_found: topSections.length,
+          containers_removed: elementsToRemove.size,
+          embedded_frames: embeddedFrames
+        }
+      };
+    };
